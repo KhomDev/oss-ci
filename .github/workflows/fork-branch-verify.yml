@@ -1,0 +1,114 @@
+# Manual verification of a branch on one of KhomDev's public forks.
+# Lives in the private repo KhomDev/oss-ci. workflow_dispatch only, no secrets,
+# read-only permissions. The command input runs in bash on a fresh ubuntu runner.
+#
+# Example:
+#   gh workflow run fork-branch-verify.yml -R KhomDev/oss-ci \
+#     -f repo=KhomDev/foundry -f ref=verify/1234-thing -f toolchain=rust \
+#     -f command='cargo test -p forge --lib -- some_filter'
+
+name: fork branch verify
+run-name: "${{ inputs.repo }}@${{ inputs.ref }}: ${{ inputs.label }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Fork to check out, e.g. KhomDev/foundry"
+        required: true
+        type: string
+      ref:
+        description: "Branch, tag or commit"
+        required: true
+        type: string
+      toolchain:
+        description: "rust | node | rust+node | none"
+        required: true
+        default: "rust"
+        type: string
+      node_version:
+        description: "Node version when toolchain includes node"
+        required: false
+        default: "22"
+        type: string
+      apt:
+        description: "Extra apt packages, space separated"
+        required: false
+        default: ""
+        type: string
+      command:
+        description: "Bash command to run in the checkout"
+        required: true
+        type: string
+      label:
+        description: "Short label shown in the run name"
+        required: false
+        default: "verify"
+        type: string
+
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    permissions:
+      contents: read
+    steps:
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: System packages
+        env:
+          APT: ${{ inputs.apt }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libclang-dev protobuf-compiler pkg-config libssl-dev cmake $APT
+
+      - name: Node
+        if: ${{ contains(inputs.toolchain, 'node') }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ inputs.node_version }}
+
+      - name: Enable corepack (pnpm/yarn)
+        if: ${{ contains(inputs.toolchain, 'node') }}
+        run: corepack enable || true
+
+      - name: Rust toolchain (repo pin via rust-toolchain file, else stable)
+        if: ${{ contains(inputs.toolchain, 'rust') }}
+        run: |
+          rustup show active-toolchain || rustup default stable
+          rustc --version
+
+      - name: Cargo cache
+        if: ${{ contains(inputs.toolchain, 'rust') }}
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ${{ inputs.repo }}
+          cache-on-failure: true
+
+      - name: Run command
+        env:
+          CMD: ${{ inputs.command }}
+        run: |
+          set -o pipefail
+          echo "::group::command"; echo "$CMD"; echo "::endgroup::"
+          bash -euo pipefail -c "$CMD"
