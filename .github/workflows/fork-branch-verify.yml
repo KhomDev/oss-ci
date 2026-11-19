@@ -1,5 +1,5 @@
 # Manual verification of a branch on one of KhomDev's public forks.
-# Lives in the private repo KhomDev/oss-ci. workflow_dispatch only, no secrets,
+# Lives in KhomDev/oss-ci. workflow_dispatch only, no secrets,
 # read-only permissions. The command input runs in bash on a fresh ubuntu runner.
 #
 # Example:

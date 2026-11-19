@@ -1,19 +1,7 @@
-# Proposal: manual verification workflow for a branch of a near/mpc fork.
+# Manual verification workflow for a branch of the KhomDev/mpc fork.
 #
-# Intended home: a private repository owned by KhomDev (for example `KhomDev/mpc-branch-verify`).
-# It is NOT pushed anywhere yet. It checks out the branch named in the `ref` input of
-# KhomDev/mpc (the fork), then runs fmt, clippy and `cargo test` for one crate.
-#
-# Toolchain: taken from the repository's rust-toolchain.toml (channel 1.100.0). rustup reads that
-# file on the first cargo call, so no third-party toolchain action is needed.
-#
-# Trigger: workflow_dispatch only. No pull_request trigger, so fork code never runs with secrets.
-# The workflow uses no secrets. Permissions are read-only.
-#
-# Unverified until the first run: the apt step (libclang for bindgen-based crates) and whether
-# `cargo test -p mpc-node` finishes within the job timeout on a standard hosted runner. The
-# upstream CI uses a Nix dev shell; this workflow does not, so any missing system package shows up
-# as a build error that the apt step must cover.
+# Checks out the branch named in the `ref` input, then runs fmt, clippy and
+# `cargo test` for one crate. workflow_dispatch only, no secrets, read-only.
 
 name: mpc branch verify
 
